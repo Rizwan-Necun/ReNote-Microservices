@@ -1,6 +1,6 @@
 import json
 import logging
-
+from ReNote.models import UserModel, DocumentModel, DriveModel, TagsModel, FolderModel
 import pymongo
 from bson import ObjectId, json_util
 from flask import Flask, jsonify, request
@@ -35,255 +35,233 @@ def document_to_json(data):
 ########    User Routes  ########
 
 
-@app.route('/user', methods=['POST'])
-async def create_user():
-    try:
-        data = User_Schema.load(request.get_json())
-        result = db.user.insert_one(data)
-        return jsonify({'message': 'user created successfully', 'id': str(result.inserted_id)}), 201
-    except ValidationError as err:
-        return jsonify(err.messages), 400
+def parse_json(data):
+    """Convert MongoDB document to JSON."""
+    return json.loads(json.dumps(data, default=lambda o: str(o) if isinstance(o, ObjectId) else o))
 
 
-@app.route('/user/<user_id>', methods=['GET'])
-async def get_user(user_id):
-    try:
-        data = db.user.find_one({"_id": ObjectId(user_id)})
-        if data is not None:
-            return jsonify(json.loads(json.dumps(data, default=str))), 200
-        else:
-            return jsonify({'message': 'User not found'}), 404
-    except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+@app.route('/users', methods=['POST'])
+def create_user():
+    data = User_Schema.load(request.get_json())
+    user_id = UserModel.create_user(data)
+    return jsonify({'message': 'User created successfully', 'id': user_id}), 201
 
+@app.route('/users/<user_id>', methods=['GET'])
+def get_user(user_id):
+    user = UserModel.get_user(user_id)
+    if user:
+        return jsonify(User_Schema.dump(user)), 200
+    else:
+        return jsonify({'message': 'User not found'}), 404
 
-@app.route('/user/<user_id>', methods=['PUT'])
-async def update_user(user_id):
-    try:
-        updated_data = User_Schema.load(request.get_json())
-        db.user.update_one({"_id": ObjectId(user_id)}, {
-            "$set": updated_data})
-        return jsonify({'message': 'user updated successfully'}), 200
-    except ValidationError as err:
-        return jsonify(err.messages), 400
-    except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+@app.route('/users/<user_id>', methods=['PUT'])
+def update_user(user_id):
+    user_data = User_Schema.load(request.get_json())
+    updated_user = UserModel.update_user(user_id, user_data)
+    if updated_user:
+        return jsonify({'message': 'User updated successfully'}), 200
+    else:
+        return jsonify({'message': 'User not found'}), 404
 
-
-@app.route('/user/<user_id>', methods=['DELETE'])
-async def delete_user(user_id):
-    try:
-        result = db.user.delete_one({"_id": ObjectId(user_id)})
-        if result.deleted_count:
-            return jsonify({'message': 'user deleted successfully'}), 200
-        else:
-            return jsonify({'message': 'user not found'}), 404
-    except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+@app.route('/users/<user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    success = UserModel.delete_user(user_id)
+    if success:
+        return jsonify({'message': 'User deleted successfully'}), 200
+    else:
+        return jsonify({'message': 'User not found'}), 404
 
 
 ############## Folders Routes ################
-@app.route('/folder', methods=['POST'])
-async def create_folder():
+@app.route('/folders', methods=['POST'])
+def create_folder():
     try:
+        # Validate and deserialize input
         data = folder_schema.load(request.get_json())
-        result = db.folders.insert_one(data).inserted_id
-        return jsonify({'message': 'Folder created successfully', 'id': str(result)}), 201
-    except ValidationError as err:
-        return jsonify(err.messages), 400
-
-
-@app.route('/folder/<folder_id>', methods=['GET'])
-async def get_folder(folder_id):
-    try:
-        data = db.folders.find_one({"_id": ObjectId(folder_id)})
-        if data is not None:
-            # Convert the MongoDB document to the desired format
-            converted_data = convert_document(data)
-            return jsonify(converted_data), 200
-        else:
-            return jsonify({'message': 'Folder not found'}), 404
+        folder_id = FolderModel.create_folder(data)
+        return jsonify({'message': 'Folder created successfully', 'id': folder_id}), 201
     except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+        return jsonify({'message': str(e)}), 400
 
+@app.route('/folders/<folder_id>', methods=['GET'])
+def get_folder(folder_id):
+    folder = FolderModel.get_folder(folder_id)
+    if folder:
+        # Serialize the output
+        return jsonify(folder_schema.dump(folder)), 200
+    else:
+        return jsonify({'message': 'Folder not found'}), 404
 
-@app.route('/folder/<folder_id>', methods=['PUT'])
-async def update_folder(folder_id):
+@app.route('/folders/<folder_id>', methods=['PUT'])
+def update_folder(folder_id):
     try:
-        updated_data = folder_schema.load(request.get_json())
-        result = db.folders.update_one(
-            {"_id": ObjectId(folder_id)}, {"$set": updated_data})
-        if result.matched_count:
+        folder_data = folder_schema.load(request.get_json())
+        if FolderModel.update_folder(folder_id, folder_data):
             return jsonify({'message': 'Folder updated successfully'}), 200
         else:
             return jsonify({'message': 'Folder not found'}), 404
-    except ValidationError as err:
-        return jsonify(err.messages), 400
-
-
-@app.route('/folder/<folder_id>', methods=['DELETE'])
-async def delete_folder(folder_id):
-    try:
-        result = db.folders.delete_one({"_id": ObjectId(folder_id)})
-        if result.deleted_count:
-            return jsonify({'message': 'Folder deleted successfully'}), 200
-        else:
-            return jsonify({'message': 'Folder not found'}), 404
     except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+        return jsonify({'message': str(e)}), 400
+
+@app.route('/folders/<folder_id>', methods=['DELETE'])
+def delete_folder(folder_id):
+    if FolderModel.delete_folder(folder_id):
+        return jsonify({'message': 'Folder deleted successfully'}), 200
+    else:
+        return jsonify({'message': 'Folder not found'}), 404
 
 ########### Document  Routes ###########
 
+@app.route('/documents', methods=['POST'])
+def create_document():
+    data = document_schema.load(request.get_json())
+    document_id = DocumentModel.create_document(data)
+    return jsonify({'message': 'Document created successfully', 'id': document_id}), 201
 
-@app.route('/document', methods=['POST'])
-async def create_document():
-    try:
-        data = document_schema.load(request.get_json())
-        result = db.documents.insert_one(data)
-        return jsonify({'message': 'Document created successfully', 'id': str(result.inserted_id)}), 201
-    except ValidationError as err:
-        return jsonify(err.messages), 400
+@app.route('/documents/<document_id>', methods=['GET'])
+def get_document(document_id):
+    document = DocumentModel.get_document(document_id)
+    if document:
+        return jsonify(document_schema.dump(document)), 200
+    else:
+        return jsonify({'message': 'Document not found'}), 404
 
-
-@app.route('/document/<document_id>', methods=['GET'])
-async def get_document(document_id):
-    try:
-        data = db.documents.find_one({"_id": ObjectId(document_id)})
-        if data is not None:
-            return jsonify(json.loads(json.dumps(data, default=str))), 200
-        else:
-            return jsonify({'message': 'Document not found'}), 404
-    except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
-
-
-@app.route('/document/<document_id>', methods=['PUT'])
-async def update_document(document_id):
-    try:
-        updated_data = document_schema.load(request.get_json())
-        db.documents.update_one({"_id": ObjectId(document_id)}, {
-                                "$set": updated_data})
+@app.route('/documents/<document_id>', methods=['PUT'])
+def update_document(document_id):
+    document_data = document_schema.load(request.get_json())
+    updated_document = DocumentModel.update_document(document_id, document_data)
+    if updated_document:
         return jsonify({'message': 'Document updated successfully'}), 200
-    except ValidationError as err:
-        return jsonify(err.messages), 400
-    except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+    else:
+        return jsonify({'message': 'Document not found'}), 404
 
+@app.route('/documents/<document_id>', methods=['DELETE'])
+def delete_document(document_id):
+    success = DocumentModel.delete_document(document_id)
+    if success:
+        return jsonify({'message': 'Document deleted successfully'}), 200
+    else:
+        return jsonify({'message': 'Document not found'}), 404
 
-@app.route('/document/<document_id>', methods=['DELETE'])
-async def delete_document(document_id):
-    try:
-        result = db.documents.delete_one({"_id": ObjectId(document_id)})
-        if result.deleted_count:
-            return jsonify({'message': 'Document deleted successfully'}), 200
-        else:
-            return jsonify({'message': 'Document not found'}), 404
-    except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
 
 ####### Tags Routes ########
 
-
 @app.route('/tags', methods=['POST'])
-async def create_tags():
+def create_tag():
     try:
+        # Validate and deserialize input
         data = tags_schema.load(request.get_json())
-        result = db.Tags.insert_one(data)
-        return jsonify({'message': 'Tags created successfully', 'id': str(result.inserted_id)}), 201
-    except ValidationError as err:
-        return jsonify(err.messages), 400
+        tag_id = TagsModel.create_tag(data)
+        return jsonify({'message': 'Tag created successfully', 'id': tag_id}), 201
     except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+        return jsonify({'message': str(e)}), 400
 
+@app.route('/tags/<tag_id>', methods=['GET'])
+def get_tag(tag_id):
+    tag = TagsModel.get_tag(tag_id)
+    if tag:
+        # Serialize the output
+        return jsonify(tags_schema.dump(tag)), 200
+    else:
+        return jsonify({'message': 'Tag not found'}), 404
 
-@app.route('/tags/<tags_id>', methods=['GET'])
-async def get_tags(tags_id):
+@app.route('/tags/<tag_id>', methods=['PUT'])
+def update_tag(tag_id):
     try:
-        data = db.Tags.find_one({"_id": ObjectId(tags_id)})
-        if data is not None:
-            # Convert _id from ObjectId to string
-            data['_id'] = str(data['_id'])
-            return jsonify(data), 200
+        tag_data = tags_schema.load(request.get_json())
+        if TagsModel.update_tag(tag_id, tag_data):
+            return jsonify({'message': 'Tag updated successfully'}), 200
         else:
-            return jsonify({'message': 'Tags not found'}), 404
+            return jsonify({'message': 'Tag not found'}), 404
     except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+        return jsonify({'message': str(e)}), 400
 
-
-@app.route('/tags/<tags_id>', methods=['PUT'])
-async def update_tags(tags_id):
-    try:
-        updated_data = tags_schema.load(request.get_json())
-        result = db.Tags.update_one(
-            {"_id": ObjectId(tags_id)}, {"$set": updated_data})
-        if result.matched_count:
-            return jsonify({'message': 'Tags updated successfully'}), 200
-        return jsonify({'message': 'Tags not found'}), 404
-    except ValidationError as err:
-        return jsonify(err.messages), 400
-    except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
-
-
-@app.route('/tags/<tags_id>', methods=['DELETE'])
-async def delete_tags(tags_id):
-    try:
-        result = db.Tags.delete_one({"_id": ObjectId(tags_id)})
-        if result.deleted_count:
-            return jsonify({'message': 'Tags deleted successfully'}), 200
-        return jsonify({'message': 'Tags not found'}), 404
-    except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+@app.route('/tags/<tag_id>', methods=['DELETE'])
+def delete_tag(tag_id):
+    if TagsModel.delete_tag(tag_id):
+        return jsonify({'message': 'Tag deleted successfully'}), 200
+    else:
+        return jsonify({'message': 'Tag not found'}), 404
 
 
 ##### Drive Routes #####
-@app.route('/drive', methods=['POST'])
-async def create_drive():
+@app.route('/drives', methods=['POST'])
+def create_drive():
     try:
+        # Validate and deserialize input
         data = Drive_schema.load(request.get_json())
-        result = db.Drive.insert_one(data)
-        return jsonify({'message': 'Drive created successfully', 'id': str(result.inserted_id)}), 201
-    except ValidationError as err:
-        return jsonify(err.messages), 400
+        drive_id = DriveModel.create_drive(data)
+        return jsonify({'message': 'Drive created successfully', 'id': drive_id}), 201
     except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+        return jsonify({'message': str(e)}), 400
 
+@app.route('/drives/<drive_id>', methods=['GET'])
+def get_drive(drive_id):
+    drive = DriveModel.get_drive(drive_id)
+    if drive:
+        # Serialize the output
+        return jsonify(Drive_schema.dump(drive)), 200
+    else:
+        return jsonify({'message': 'Drive not found'}), 404
 
-@app.route('/drive/<drive_id>', methods=['GET'])
-async def drive_tags(drive_id):
+@app.route('/drives/<drive_id>', methods=['PUT'])
+def update_drive(drive_id):
     try:
-        data = db.Drive.find_one({"_id": ObjectId(drive_id)})
-        if data is not None:
-            # Convert _id from ObjectId to string
-            data['_id'] = str(data['_id'])
-            return jsonify(data), 200
+        drive_data = Drive_schema.load(request.get_json())
+        if DriveModel.update_drive(drive_id, drive_data):
+            return jsonify({'message': 'Drive updated successfully'}), 200
         else:
             return jsonify({'message': 'Drive not found'}), 404
     except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+        return jsonify({'message': str(e)}), 400
 
-
-@app.route('/drive/<drive_id>', methods=['PUT'])
-async def update_drive(drive_id):
-    try:
-        updated_data = Drive_schema.load(request.get_json())
-        result = db.Drive.update_one(
-            {"_id": ObjectId(drive_id)}, {"$set": updated_data})
-        if result.matched_count:
-            return jsonify({'message': 'Drive updated successfully'}), 200
+@app.route('/drives/<drive_id>', methods=['DELETE'])
+def delete_drive(drive_id):
+    if DriveModel.delete_drive(drive_id):
+        return jsonify({'message': 'Drive deleted successfully'}), 200
+    else:
         return jsonify({'message': 'Drive not found'}), 404
-    except ValidationError as err:
-        return jsonify(err.messages), 400
-    except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
 
 
-@app.route('/drive/<drive_id>', methods=['DELETE'])
-async def delete_drive(drive_id):
-    try:
-        result = db.Drive.delete_one({"_id": ObjectId(drive_id)})
-        if result.deleted_count:
-            return jsonify({'message': 'Drive deleted successfully'}), 200
-        return jsonify({'message': 'Tags not found'}), 404
-    except Exception as e:
-        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+    
+    
+    
+    
+    
+    
+    
+    
+# @app.route('/upload_image', methods=['POST'])
+# @token_required
+# def upload_image_main(self,redis_user,token_user, token_email, token_application_id, token_client_id, token):
+   
+#     # method_response=all_methods_instance.upload_image(token_user)
+#     # if method_response is not None:
+#     #     return method_response
+    
+#     def upload_image(self,username):
+#         if 'image' not in request.files:
+#             return jsonify({'message': 'No image part'}), 400
+ 
+#         file = request.files['image']
+#         if file.filename == '':
+#             return jsonify({'message': 'No selected file'}), 400
+   
+#         filename = secure_filename(file.filename)
+#         image_url = self.upload_to_azure_blob(file, filename)
+       
+#         response=db_instance.uploading_image_url(username , image_url)
+#         if response is not None:
+#             return response
+   
+       
+   
+#     def upload_to_azure_blob(self,file_stream, file_name):
+   
+#         if not AZURE_STORAGE_CONNECTION_STRING:
+#             raise ValueError("The Azure Storage Connection String is not set or is empty.")
+   
+#         blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+#         blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=file_name)
+   
+#         blob_client.upload_blob(file_stream, overwrite=True)

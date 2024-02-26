@@ -9,11 +9,17 @@ from ReNote import app, db
 from ReNote.models import (Drive_schema, User_Schema,
                            document_schema, tags_schema, folder_schema)
 from azure.storage.blob import BlobServiceClient
+import werkzeug
+from werkzeug.utils import secure_filename
+from ReNote.models import all_methods
 
 
-
+token_user='nikhil'
 AZURE_STORAGE_CONNECTION_STRING = 'DefaultEndpointsProtocol=https;AccountName=necunblobstorage;AccountKey=hgzRK0zpgs+bXf4wnfvFLEJNbSMlbTNeJBuhYHS9jcTrRTzlh0lVlT7K59U8yG0Ojh65p/c4sV97+AStOXtFWw==;EndpointSuffix=core.windows.net'
 CONTAINER_NAME = 'pictures'
+
+
+all_methods_instance = all_methods()
 
 ############# HELPERS #########
 
@@ -222,46 +228,18 @@ def delete_drive(drive_id):
     else:
         return jsonify({'message': 'Drive not found'}), 404
 
+@app.route('/upload_image', methods=['POST'])
+def upload_image_main():
+    
+    method_response=all_methods_instance.upload_image(token_user)
+    if method_response is not None:
+        return method_response
+    
+    
+    
+    
+    
+    
+    
+    
 
-    
-    
-    
-    
-    
-    
-    
-    
-# @app.route('/upload_image', methods=['POST'])
-# @token_required
-# def upload_image_main(self,redis_user,token_user, token_email, token_application_id, token_client_id, token):
-   
-#     # method_response=all_methods_instance.upload_image(token_user)
-#     # if method_response is not None:
-#     #     return method_response
-    
-#     def upload_image(self,username):
-#         if 'image' not in request.files:
-#             return jsonify({'message': 'No image part'}), 400
- 
-#         file = request.files['image']
-#         if file.filename == '':
-#             return jsonify({'message': 'No selected file'}), 400
-   
-#         filename = secure_filename(file.filename)
-#         image_url = self.upload_to_azure_blob(file, filename)
-       
-#         response=db_instance.uploading_image_url(username , image_url)
-#         if response is not None:
-#             return response
-   
-       
-   
-#     def upload_to_azure_blob(self,file_stream, file_name):
-   
-#         if not AZURE_STORAGE_CONNECTION_STRING:
-#             raise ValueError("The Azure Storage Connection String is not set or is empty.")
-   
-#         blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
-#         blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=file_name)
-   
-#         blob_client.upload_blob(file_stream, overwrite=True)

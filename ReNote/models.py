@@ -2,6 +2,12 @@ from marshmallow import Schema, fields
 from ReNote import app,db
 from flask import jsonify
 from bson import ObjectId, json_util
+from flask import request
+from werkzeug.utils import secure_filename
+from azure.storage.blob import BlobServiceClient
+from mysql.connector import Error as MySQLError
+from mysql.connector import errorcode
+import mysql.connector
 
 
 class UserSchema(Schema):
@@ -50,7 +56,8 @@ class TagsSchema(Schema):
     tag_name = fields.Str(required=True)
     user_id = fields.Str(required=True)
     
-    
+AZURE_STORAGE_CONNECTION_STRING = 'DefaultEndpointsProtocol=https;AccountName=necunblobstorage;AccountKey=hgzRK0zpgs+bXf4wnfvFLEJNbSMlbTNeJBuhYHS9jcTrRTzlh0lVlT7K59U8yG0Ojh65p/c4sV97+AStOXtFWw==;EndpointSuffix=core.windows.net'
+CONTAINER_NAME = 'pictures'
     
     
     
@@ -169,6 +176,44 @@ class TagsModel:
     def delete_tag(tag_id):
         result = db.tags.delete_one({"_id": ObjectId(tag_id)})
         return result.deleted_count > 0
+    
+class all_methods():
+    def upload_image(self,username):
+        if 'image' not in request.files:
+            return jsonify({'message': 'No image part'}), 400
+ 
+        file = request.files['image']
+        if file.filename == '':
+            return jsonify({'message': 'No selected file'}), 400
+   
+        filename = secure_filename(file.filename)
+        image_url = self.upload_to_azure_blob(file, filename)
+       
+        response=self.uploading_image_url(username , image_url)
+        if response is not None:
+            return response
+   
+       
+   
+    def upload_to_azure_blob(self,file_stream, file_name):
+   
+        if not AZURE_STORAGE_CONNECTION_STRING:
+            raise ValueError("The Azure Storage Connection String is not set or is empty.")
+   
+        blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+        blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=file_name)
+   
+        blob_client.upload_blob(file_stream, overwrite=True)
+        return blob_client.url
+        
+        
+    def uploading_image_url(self,username,image_url):
+        try:
+            db.document.insert_one({"username": username, "image_url": image_url})
+            return jsonify({'message': 'Image uploaded successfully', 'url': image_url}), 200
+        except Exception as err:
+            print("Error:", err)
+            return jsonify({'message': 'Failed to upload image'}), 500
 
 
 

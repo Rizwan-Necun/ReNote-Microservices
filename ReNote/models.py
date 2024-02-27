@@ -5,9 +5,6 @@ from bson import ObjectId, json_util
 from flask import request
 from werkzeug.utils import secure_filename
 from azure.storage.blob import BlobServiceClient
-from mysql.connector import Error as MySQLError
-from mysql.connector import errorcode
-import mysql.connector
 
 
 class UserSchema(Schema):
@@ -69,22 +66,22 @@ CONTAINER_NAME = 'pictures'
 class UserModel:
     @staticmethod
     def create_user(data):
-        result = db.user.insert_one(data)
+        result = db.users.insert_one(data)
         return str(result.inserted_id)
 
     @staticmethod
     def get_user(user_id):
-        data = db.user.find_one({"_id": ObjectId(user_id)})
+        data = db.users.find_one({"_id": ObjectId(user_id)})
         return data
 
     @staticmethod
     def update_user(user_id, updated_data):
-        result = db.user.update_one({"_id": ObjectId(user_id)}, {"$set": updated_data})
+        result = db.users.update_one({"_id": ObjectId(user_id)}, {"$set": updated_data})
         return result.matched_count > 0
 
     @staticmethod
     def delete_user(user_id):
-        result = db.user.delete_one({"_id": ObjectId(user_id)})
+        result = db.users.delete_one({"_id": ObjectId(user_id)})
         return result.deleted_count > 0
     
     
@@ -92,44 +89,44 @@ class UserModel:
 class DocumentModel:
     @staticmethod
     def create_document(data):
-        result = db.document.insert_one(data)
+        result = db.documents.insert_one(data)
         return str(result.inserted_id)
 
     @staticmethod
     def get_document(document_id):
-        data = db.document.find_one({"_id": ObjectId(document_id)})
+        data = db.documents.find_one({"_id": ObjectId(document_id)})
         return data
 
     @staticmethod
     def update_document(document_id, updated_data):
-        result = db.document.update_one({"_id": ObjectId(document_id)}, {"$set": updated_data})
+        result = db.documents.update_one({"_id": ObjectId(document_id)}, {"$set": updated_data})
         return result.matched_count > 0
 
     @staticmethod
     def delete_document(document_id):
-        result = db.document.delete_one({"_id": ObjectId(document_id)})
+        result = db.documents.delete_one({"_id": ObjectId(document_id)})
         return result.deleted_count > 0
 
 ############# Drive Table Operations ################
 class DriveModel:
     @staticmethod
     def create_drive(data):
-        result = db.drive.insert_one(data)
+        result = db.drives.insert_one(data)
         return str(result.inserted_id)
 
     @staticmethod
     def get_drive(drive_id):
-        data = db.drive.find_one({"_id": ObjectId(drive_id)})
+        data = db.drives.find_one({"_id": ObjectId(drive_id)})
         return data
 
     @staticmethod
     def update_drive(drive_id, updated_data):
-        result = db.drive.update_one({"_id": ObjectId(drive_id)}, {"$set": updated_data})
+        result = db.drives.update_one({"_id": ObjectId(drive_id)}, {"$set": updated_data})
         return result.matched_count > 0
 
     @staticmethod
     def delete_drive(drive_id):
-        result = db.drive.delete_one({"_id": ObjectId(drive_id)})
+        result = db.drives.delete_one({"_id": ObjectId(drive_id)})
         return result.deleted_count > 0
 
 
@@ -137,22 +134,22 @@ class DriveModel:
 class FolderModel:
     @staticmethod
     def create_folder(data):
-        result = db.folder.insert_one(data)
+        result = db.folders.insert_one(data)
         return str(result.inserted_id)
 
     @staticmethod
     def get_folder(folder_id):
-        data = db.folder.find_one({"_id": ObjectId(folder_id)})
+        data = db.folders.find_one({"_id": ObjectId(folder_id)})
         return data
 
     @staticmethod
     def update_folder(folder_id, updated_data):
-        result = db.folder.update_one({"_id": ObjectId(folder_id)}, {"$set": updated_data})
+        result = db.folders.update_one({"_id": ObjectId(folder_id)}, {"$set": updated_data})
         return result.matched_count > 0
 
     @staticmethod
     def delete_folder(folder_id):
-        result = db.folder.delete_one({"_id": ObjectId(folder_id)})
+        result = db.folders.delete_one({"_id": ObjectId(folder_id)})
         return result.deleted_count > 0
 
 ######### Tags Table Operations ################
@@ -209,7 +206,7 @@ class all_methods():
         
     def uploading_image_url(self,username,image_url):
         try:
-            db.document.insert_one({"username": username, "image_url": image_url})
+            db.Azuredocuments.insert_one({"username": username, "image_url": image_url})
             return jsonify({'message': 'Image uploaded successfully', 'url': image_url}), 200
         except Exception as err:
             print("Error:", err)
